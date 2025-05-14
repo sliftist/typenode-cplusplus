@@ -5,6 +5,12 @@
   "author": "sliftist <sliftist@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "typedev": "^0.4.0"
+    "clang-wasm": "^15.0.0-a",
+    "socket-function": "^0.118.0",
+    "typedev": "^0.4.0",
+    "typenode": "^5.9.0"
+  },
+  "scripts": {
+    "start": "yarn typenode index.ts"
   }
 }

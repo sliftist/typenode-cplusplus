@@ -1,0 +1,9 @@
+dist
+node_modules
+*.bin
+*.mkv
+*.wav
+*.mp4
+*.mp3
+*.m4a
+*.aac

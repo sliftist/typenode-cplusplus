@@ -1,0 +1,4 @@
+Try not to use "null", and instead always use "undefined".
+
+Never use non-null assertion operator, instead check the value, and if necessary (because it is accessed in nested functions), use a const variable to preserve the type.
+Errors should almost always use a template string to include the expected value, and the actual value, as in: "throw new Error(`Expected X, was ${Y}`);"

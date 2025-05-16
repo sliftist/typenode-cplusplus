@@ -1,7 +1,7 @@
 {
   "name": "typenode-cplusplus",
-  "version": "0.7.0",
-  "main": "index.js",
+  "version": "0.7.1",
+  "main": "index.ts",
   "author": "sliftist <sliftist@gmail.com>",
   "license": "MIT",
   "dependencies": {

@@ -1,11 +1,11 @@
 {
   "name": "typenode-cplusplus",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "main": "index.js",
   "author": "sliftist <sliftist@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "clang-wasm": "^20.1.3-b",
+    "clang-wasm": "^20.1.3-c",
     "socket-function": "^0.118.0",
     "typedev": "^0.4.0",
     "typenode": "^5.10.0"

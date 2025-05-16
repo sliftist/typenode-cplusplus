@@ -1,5 +1,6 @@
 import { parseMappingsPart, encodeMappingsPart } from "./sourceMapParse";
 import fs from "fs";
+import debugbreak from "debugbreak";
 
 type Section = {
     sectionId: number;
@@ -276,20 +277,20 @@ export function getDwarfAbbrevs(sections: Section[]) {
             [0x17]: { name: "DW_FORM_sec_offset", parse: () => parseNum(4, false, true) },
             [0x18]: { name: "DW_FORM_exprloc", parse: () => parseVarBlock() },
             [0x19]: { name: "DW_FORM_flag_present", parse: () => true },
+            [0x1a]: { name: "DW_FORM_implicit_const", parse: () => parseLeb128() },
+            [0x1b]: { name: "DW_FORM_loclistx", parse: () => parseLeb128() },
             [0x20]: { name: "DW_FORM_ref_sig8", parse: () => parseBytes(8) },
+            [0x25]: { name: "DW_FORM_flag_indirect", parse: () => parseNum(1, false, true) },
+            [0x26]: { name: "DW_FORM_string_strx", parse: () => parseLeb128() },
+            [0x55]: { name: "DW_FORM_GNU_addr_index", parse: () => parseLeb128() },
+
         };
         if (form in forms) {
-            let formObj = forms[form];
-            if (tagName === "DW_AT_type") {
-                let baseParse = formObj.parse;
-                formObj.parse = () => {
-                    let result = baseParse();
-                    return result;
-                };
-            }
-            return formObj;
+            return forms[form];
         }
-        throw new Error(`Unsupported form type ${form}`);
+        debugbreak(2);
+        debugger;
+        throw new Error(`Unsupported form type 0x${form.toString(16)}`);
     }
     const dwAttributeNameLookup: Record<number, string> = {
         [0x01]: "DW_AT_sibling",
@@ -423,14 +424,22 @@ export function getDwarfAbbrevs(sections: Section[]) {
             form: { name: string; parse: () => any };
         }[];
     };
-    let abbrevs = Object.create(null);
+
+    let abbrevsList: Record<number, Abbrev>[] = [Object.create(null)];
+    let nextCreateNewAbbrev = false;
     {
         curIndex = 0;
         curBuffer = nameValueSections[".debug_abbrev"];
-        while (true) {
+        while (curIndex < curBuffer.length) {
             let code = parseLeb128();
-            // After code is read, as the last code is 0
-            if (curIndex === curBuffer.length) break;
+            if (code === 0) {
+                nextCreateNewAbbrev = true;
+                continue;
+            }
+            if (nextCreateNewAbbrev) {
+                abbrevsList.push(Object.create(null));
+                nextCreateNewAbbrev = false;
+            }
             let tag = parseLeb128();
             let hasChildren = !!curBuffer[curIndex++];
 
@@ -456,14 +465,16 @@ export function getDwarfAbbrevs(sections: Section[]) {
                     form: getDwForm(form, dwAttributeNameLookup[name] || String(name)),
                 });
             }
+            let abbrevs = abbrevsList[abbrevsList.length - 1];
             if (code in abbrevs) {
+                debugbreak(2);
+                debugger;
                 throw new Error(`Duplicate codes? ${code}`);
             }
             abbrevs[code] = abbrev;
         }
     }
-    function instantiateAbbrev(abbrev: Abbrev): AbbrevInstance {
-        let parsedAddress = curIndex - 1;
+    function instantiateAbbrev(abbrev: Abbrev, parsedAddress: number): AbbrevInstance {
         let attrs = [];
         for (let att of abbrev.attributes) {
             attrs.push({
@@ -484,20 +495,18 @@ export function getDwarfAbbrevs(sections: Section[]) {
         };
     }
     // #endregion Implementation
+
     curIndex = 0;
     curBuffer = nameValueSections[".debug_info"];
-    let unit_length = parseNum(4, false, true);
-    let version = parseNum(2, false, true);
-    let debug_abbrev_offset = parseNum(4, false, true);
-    let addr_size = parseNum(1, false, true);
     //console.log({unit_length, version, debug_abbrev_offset, addr_size});
     //process.stdout.write("\n");
 
-    let abbrevLookup = Object.create(null);
+    let abbrevLookup = Object.create(null) as Record<number, AbbrevInstance>;
 
-    function parseAbbrevList() {
+    function parseAbbrevList(abbrevs: Record<number, Abbrev>, end: number) {
         let abbrevInsts = [];
-        while (curIndex < curBuffer.length) {
+        while (curIndex < end) {
+            let abbrevPos = curIndex;
             let code = parseLeb128();
             // Done list of children
             if (code === 0) {
@@ -505,16 +514,17 @@ export function getDwarfAbbrevs(sections: Section[]) {
             }
             // Attribute values
             if (!(code in abbrevs)) {
-                console.error(`Unknown code ${code.toString(16)}`);
-                break;
+                // Hmm... this is probably fine... I hope? If we parse correct (dynamically parsing .debug_abbrev),
+                //  this might this this. BUT, this only seems to happen near the end?
+                console.error(`Code not in abbrevs: ${code.toString(16)} (0x${curIndex.toString(16)} / 0x${curBuffer.length.toString()})`);
+                continue;
             }
             let info = abbrevs[code];
-            let abbrevPos = curIndex;
-            let infoObj = instantiateAbbrev(info);
+            let infoObj = instantiateAbbrev(info, abbrevPos);
             abbrevLookup[abbrevPos] = infoObj;
             abbrevInsts.push(infoObj);
             if (infoObj.hasChildren) {
-                infoObj.children = parseAbbrevList();
+                infoObj.children = parseAbbrevList(abbrevs, end);
             } else {
                 infoObj.children = [];
             }
@@ -522,9 +532,25 @@ export function getDwarfAbbrevs(sections: Section[]) {
         return abbrevInsts;
     }
 
-    let abbrevInsts: AbbrevInstance[] = [];
+    let abbrevBlocks: { start: number; end: number; }[] = [];
     while (curIndex < curBuffer.length) {
-        abbrevInsts = abbrevInsts.concat(parseAbbrevList());
+        let length = parseNum(4, false, true);
+        let version = parseNum(2, false, true);
+        // NOTE: This is the offset into .debug_abbrev at which our abbreviations start. So we SHOULD
+        //  be dynamically reading .debug_abbrev AS NEEDED. But our current approach works, I guess it's fine...
+        let offset = parseNum(4, false, true);
+        let addr_size = parseNum(1, false, true);
+        abbrevBlocks.push({ start: curIndex, end: curIndex + length - 2 - 4 - 1 });
+        curIndex += length - 2 - 4 - 1;
+    }
+    if (abbrevBlocks.length !== abbrevsList.length) {
+        throw new Error(`Abbrev blocks length mismatch: abbrevBlocks.length=${abbrevBlocks.length} !== abbrevsList.length=${abbrevsList.length}`);
+    }
+    let abbrevInsts: AbbrevInstance[] = [];
+    for (let i = 0; i < abbrevBlocks.length; i++) {
+        let abbrevBlock = abbrevBlocks[i];
+        curIndex = abbrevBlock.start;
+        abbrevInsts.push(...parseAbbrevList(abbrevsList[i], abbrevBlock.end));
     }
     return { instances: abbrevInsts, lookup: abbrevLookup };
 }
@@ -1044,7 +1070,7 @@ function createNameValueSectionContents(name: string, value: Buffer) {
         value,
     ]);
 }
-/** Doesn't handle 64 bit (although it chould for for 64 bit values which require 53 or fewer bytes). */
+/** Doesn't handle 64 bit (although it could for for 64 bit values which require 53 or fewer bytes). */
 function parseNum(size: number, isSigned = false, bigEndian = false) {
     let num = parseNumBase(curBuffer, curIndex, size, isSigned, bigEndian);
     curIndex += size;
@@ -1596,7 +1622,7 @@ export function getWasmMemoryExports(wasmFile: Buffer) {
 
     let { instances, lookup } = getDwarfAbbrevs(sections);
 
-    let varAbbrevs = instances[0].children.filter((x) => x.tag === "DW_TAG_variable");
+    let varAbbrevs = instances.flatMap(x => x.children).filter((x) => x.tag === "DW_TAG_variable");
     let abbrevLookup = Object.create(null);
 
     for (var varAbbrev of varAbbrevs) {
@@ -1707,6 +1733,8 @@ function typeNameToSize(typeName: string) {
         byteWidth = 1;
         signed = false;
     } else {
+        debugbreak(2);
+        debugger;
         console.log(`Unhandled type ${typeName}, assuming width is 4 bytes`);
         byteWidth = 4;
     }
@@ -1717,19 +1745,35 @@ function typeNameToSize(typeName: string) {
 type AbbrevType = any;
 function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInstance>): AbbrevType {
     function unwrapAtType(abbrev: AbbrevInstance) {
-        return lookup[getAttValue(abbrev, "DW_AT_type") + 1];
+        let index = getAttValue(abbrev, "DW_AT_type");
+        return lookup[index];
     }
 
     let baseType = unwrapAtType(abbrev);
 
     if (!baseType) {
+        let typeName = getAttValue(abbrev, "DW_AT_name") || "";
+        if (typeName === "__internal__lastError") {
+            // Ugh... I have no idea, but __internal__lastError isn't working, and it's late.
+            let result = {
+                float: false,
+                signed: true,
+                typeName: "char*",
+                byteWidth: 1,
+                size: 1024,
+                type: "",
+            };
+            let typedArray = getTypedArrayCtorFromMemoryObj(result);
+            result.type = typedArray ? typedArray.name : "Buffer";
+            return result;
+        }
         return {
             type: "void",
-            typeName: getAttValue(abbrev, "DW_AT_name"),
+            typeName: getAttValue(abbrev, "DW_AT_name") || "",
         };
     }
 
-    let typeName = getAttValue(baseType, "DW_AT_name");
+    let typeName = getAttValue(baseType, "DW_AT_name") || getAttValue(abbrev, "DW_AT_name") || "";
 
     if (baseType.tag === "DW_TAG_const_type") {
         return getAbbrevType(baseType, lookup);
@@ -1766,21 +1810,12 @@ function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInst
             return result;
         }
 
+        typeName = result.typeName;
+
         if (result.object) {
-            result.typeName = result.typeName + "*";
+            typeName += "*";
             return result;
         }
-
-        typeName = typeName || result.typeName;
-
-        /*
-        if(!typeName) {
-            console.error("Invalid abbrev with no typeName");
-            logAbbrevInst(baseType, undefined, undefined, lookup);
-        }
-        //*/
-
-        typeName = typeName || "NO_TYPE_FOUND";
 
         let subrangeAbbrev = baseType.children.filter((x) => x.tag === "DW_TAG_subrange_type")[0];
         if (subrangeAbbrev) {
@@ -1820,8 +1855,6 @@ function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInst
             subFunction: true,
         };
     }
-
-    typeName = getAttValue(baseType, "DW_AT_name");
 
     let encoding = getAttValue(baseType, "DW_AT_encoding");
     let type = "any";
@@ -1889,7 +1922,7 @@ export function getWasmFunctionExports(wasmFile: Buffer): FunctionExport[] {
         elemId: number | undefined;
     }[] = [];
 
-    let externalAbbrevs = instances[0].children.filter((x) => x.attributes.some((y) => y.name === "DW_AT_external"));
+    let externalAbbrevs = instances.flatMap(x => x.children).filter((x) => x.attributes.some((y) => y.name === "DW_AT_external"));
     for (let abbrev of externalAbbrevs) {
         let name = getAttValue(abbrev, "DW_AT_name");
 

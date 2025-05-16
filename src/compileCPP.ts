@@ -1,15 +1,16 @@
+let thread = Date.now() + Math.random();
 import { getBinaryPath } from "clang-wasm";
 import child_process from "child_process";
 import path from "path";
 import os from "os";
 import fs from "fs";
-let thread = Date.now() + Math.random();
 export function compileCpp(config: {
     inputPath: string;
     debug?: boolean;
 }): Buffer {
     const { inputPath, debug } = config;
-    let tempOutputPath = path.join(os.tmpdir(), `temp-${thread}.wasm`);
+    let tempOutputPath = os.tmpdir() + `/temp-${thread}.wasm`;
+    let libPath = path.resolve(__dirname + "/../library.cpp");
     let parameters = [
         `--target=wasm32`,
         `-nostdlib`,
@@ -18,13 +19,17 @@ export function compileCpp(config: {
         `-Wl,--export-dynamic`,
         `-fvisibility=hidden`,
         `-Wl,--allow-undefined`,
+        `-fwasm-exceptions`,
         debug ? "-g" : `-Ofast`,
+        //`-fmodules-ts`,
     ];
+    // let version = child_process.execFileSync(getBinaryPath(), ["--version"]).toString();
+    // console.log({ version });
     // clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all -o add2.wasm add2.cpp
-    let result = child_process.execFileSync(getBinaryPath(), parameters.concat([
-        `-o`,
-        tempOutputPath,
-        inputPath
+    let result = child_process.execFileSync(getBinaryPath("clang"), parameters.concat([
+        `-o`, tempOutputPath,
+        inputPath,
+        libPath
     ]));
     let buffer = fs.readFileSync(tempOutputPath);
     fs.unlinkSync(tempOutputPath);

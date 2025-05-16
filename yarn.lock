@@ -344,35 +344,29 @@ chalk@^4.0.0:
     ansi-styles "^4.1.0"
     supports-color "^7.1.0"
 
-clang-linux-x64@15.0.6:
-  version "15.0.6"
-  resolved "https://registry.yarnpkg.com/clang-linux-x64/-/clang-linux-x64-15.0.6.tgz#87c339a590a26d817c071bf079841f8a14907100"
-  integrity sha512-CtmGHD0HJbAZuFRq4NWnkLY8kDU1SvKFL3Io3YfRw4VGF4rFswI6+IAe6zbAey8vKbl0yaF8+ZK/yTLZsuDRKg==
+clang-darwin-x64@20.1.3:
+  version "20.1.3"
+  resolved "https://registry.yarnpkg.com/clang-darwin-x64/-/clang-darwin-x64-20.1.3.tgz#7b915c1a6b1b88dc71625bd29f87210dc9a3f6aa"
+  integrity sha512-ECxfrjfEDMQqsWCDJ/gR1IxNF9+pF16FoO/mNGdTUw0wkNXzJ+XbwLaJbYUNp6vA1zcrWd6yAEsiE8MFpHz+7w==
 
-clang-wasm-arm64@15.0.6-a:
-  version "15.0.6-a"
-  resolved "https://registry.yarnpkg.com/clang-wasm-arm64/-/clang-wasm-arm64-15.0.6-a.tgz#c1efd01dd68cc248a8b9e2baf1719142d6431439"
-  integrity sha512-kp372AQ+P16TRs4bmc/wVSYkubzm+ubFUJ8UKOs/KKoJxCIZ07EXH3MT6286iKCJpRYGqsvlDkLrfbOKZ2qcvw==
+clang-linux-x64@20.1.3-c:
+  version "20.1.3-c"
+  resolved "https://registry.yarnpkg.com/clang-linux-x64/-/clang-linux-x64-20.1.3-c.tgz#e6b06d167b69c18371650e38a72ef5da0a908a14"
+  integrity sha512-d6aBAjULQtp9AEE/y8571Vr3S4H6vxu3ztUu8QKiwXoFtonv4SQcOwb9ZNr9j39tJWZt0KsS1Z9yODTiyfeY9Q==
 
-clang-wasm-darwin-x64@15.0.7:
-  version "15.0.7"
-  resolved "https://registry.yarnpkg.com/clang-wasm-darwin-x64/-/clang-wasm-darwin-x64-15.0.7.tgz#d9e841f1d11612b8c6b95541a5409e588df6ff98"
-  integrity sha512-SbHDSN9PRDNpgi6xo7Od3lF4JCaXb6+zwYuRjvZeXlScruIFYrSGrZWPoGSL1gTLfbX7WVIhZURJwxGAIl1yfw==
+clang-wasm-win64@20.1.3:
+  version "20.1.3"
+  resolved "https://registry.yarnpkg.com/clang-wasm-win64/-/clang-wasm-win64-20.1.3.tgz#02de2bce0a49a2306e658e96b896873dfc88e157"
+  integrity sha512-BSsKaKVqQWCf6H7LlrbRMinp1kUTjT9yRDtlSRYSgj3oejI9HtOsdhmbx6uEG8gPdAoYCGcg9l8SxfEiWT6lHg==
 
-clang-wasm-win64@15.0.7:
-  version "15.0.7"
-  resolved "https://registry.yarnpkg.com/clang-wasm-win64/-/clang-wasm-win64-15.0.7.tgz#65c0690af282e9494c0cf1fefdfe42cd5b4aa3eb"
-  integrity sha512-Aq54DUPUdlsWSWtsJhOPIXkKIE6iyG9h+kERucwCjIhj7nU3yXlIfbn8tswqXRNxDGcu0sjID6Q33X0PdgQ1vg==
-
-clang-wasm@^15.0.0-a:
-  version "15.0.0-a"
-  resolved "https://registry.yarnpkg.com/clang-wasm/-/clang-wasm-15.0.0-a.tgz#ed4c26be224bbc9d31a274a3632cf7bb735d450a"
-  integrity sha512-nFT9v3kkTgG0wFCOKN+mbE8/l62PXon2/7ycpd4CaBeBRpHb4v+mK6zoaboWKuLYVsgLUeMRJoMR2MbRsc9QoA==
+clang-wasm@^20.1.3-a:
+  version "20.1.3-a"
+  resolved "https://registry.yarnpkg.com/clang-wasm/-/clang-wasm-20.1.3-a.tgz#4e96ee098c436c09837e6175a2324d8637c22f5e"
+  integrity sha512-DmRz0vjuAtmq2dgd+g65rjP0FRrKIKu7LKkbZRb8Z0BV4GXyDt4utNs/lVS5Uju8F0ZekiToorKRfx77bjbtvQ==
   optionalDependencies:
-    clang-linux-x64 "15.0.6"
-    clang-wasm-arm64 "15.0.6-a"
-    clang-wasm-darwin-x64 "15.0.7"
-    clang-wasm-win64 "15.0.7"
+    clang-darwin-x64 "20.1.3"
+    clang-linux-x64 "20.1.3-c"
+    clang-wasm-win64 "20.1.3"
 
 color-convert@^2.0.1:
   version "2.0.1"
@@ -1065,6 +1059,15 @@ typedev@^0.4.0:
     "@typescript-eslint/parser" "^6.21.0"
     debugbreak "^0.11.0"
     eslint "^8.18.0"
+
+typenode@^5.10.0:
+  version "5.10.0"
+  resolved "https://registry.yarnpkg.com/typenode/-/typenode-5.10.0.tgz#86e97b8ed6f1672e6ebed5ea061d4dbcd3587fc0"
+  integrity sha512-y6cYXPfCAT45c7tfca8TZZuWG2dZ4jJGYjrTGPV7ihWdsUXXczjBRgd3cqBEBuNUkCOyMfn0CaGETMoOkEyXPQ==
+  dependencies:
+    "@types/pegjs" "^0.10.3"
+    source-map-support "https://github.com/7rulnik/node-source-map-support"
+    typescript "5.3.3"
 
 typenode@^5.9.0:
   version "5.9.0"

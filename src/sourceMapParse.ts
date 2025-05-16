@@ -54,6 +54,10 @@ export function encode6BitVLQ(number: number) {
     while (true) {
         let curValue = number & ((1 << magnitude) - 1);
         number = number >> magnitude;
+        if (number < 0) {
+            console.warn(`Tried to encode a very high number and it became negative. Skipping number (this will probably break the sourcemap).`);
+            break;
+        }
         if (output === "") {
             curValue = curValue << 1;
             if (negative) {

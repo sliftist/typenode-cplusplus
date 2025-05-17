@@ -26,7 +26,7 @@ export function compileCpp(config: {
         //  one would think it would cause us to fail later, and we should have the stack at the
         //  end of the memory? But... with the stack at the end, we still don't always fail
         //  when we exceed it, so... I don't know.
-        `-Wl,--stack-first`,
+        //`-Wl,--stack-first`,
 
         `-Wl,--export-dynamic`,
         `-fvisibility=hidden`,

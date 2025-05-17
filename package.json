@@ -1,6 +1,6 @@
 {
   "name": "typenode-cplusplus",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "main": "index.ts",
   "author": "sliftist <sliftist@gmail.com>",
   "license": "MIT",

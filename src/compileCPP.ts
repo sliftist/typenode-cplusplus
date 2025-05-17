@@ -14,11 +14,20 @@ export function compileCpp(config: {
     let parameters = [
         `--target=wasm32`,
         `-nostdlib`,
-        // Apparently nostdlib makes the stack something stupidly small, as in,
-        //  256KB, which breaks so many programs...
-        `-Wl,--stack-size=8388608`,
         `-H`,
         `-Wl,--no-entry`,
+        // We REALLY want to set the stack size, but there is no option for this: https://lld.llvm.org/WebAssembly.html
+        //   We COULD set initial-memory, but... even if we pick a high value it MIGHT still be smaller than the static
+        //      data... So... we're just fucked. The user better not put too much on the stack, because if they
+        //      do, they will get weird errors. Ugh...
+        //`-Wl,--initial-memory=${65536 * 1100}`,
+        //`-Wl,--max-memory=${65536 * 10000}`,
+        // This might help us fail faster if we run out of stack space? Although it shouldn't,
+        //  one would think it would cause us to fail later, and we should have the stack at the
+        //  end of the memory? But... with the stack at the end, we still don't always fail
+        //  when we exceed it, so... I don't know.
+        `-Wl,--stack-first`,
+
         `-Wl,--export-dynamic`,
         `-fvisibility=hidden`,
         `-Wl,--allow-undefined`,

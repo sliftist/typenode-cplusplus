@@ -1,6 +1,5 @@
 #define EXPORT __attribute__((visibility("default")))
 
-
 EXPORT char __internal__lastError[1024] = { 63, 62, 12, 5, 2, 5, 2 };
 
 // External function to notify JS about errors

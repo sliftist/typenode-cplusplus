@@ -14,6 +14,9 @@ export function compileCpp(config: {
     let parameters = [
         `--target=wasm32`,
         `-nostdlib`,
+        // Apparently nostdlib makes the stack something stupidly small, as in,
+        //  256KB, which breaks so many programs...
+        `-Wl,--stack-size=8388608`,
         `-H`,
         `-Wl,--no-entry`,
         `-Wl,--export-dynamic`,

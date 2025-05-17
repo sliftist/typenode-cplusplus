@@ -142,6 +142,13 @@ if (typeof document === "undefined") {
                 let rawMemory = baseExports.memory.buffer;
                 for (let memory of memoryList) {
                     let { exportName, address, size, byteWidth, TypeArrayCtorName } = memory;
+                    if (exportName === "__internal__lastError") {
+                        // Ugh... our DWARF parsing is broken, and it's annoying to fix. So for now,
+                        //  we'll just hardcode this...
+                        size = 1024;
+                        byteWidth = 1;
+                        TypeArrayCtorName = "Uint8Array";
+                    }
                     let TypedArrayCtor = globalThis[TypeArrayCtorName as "Float32Array"];
                     exportsObj[exportName] = new TypedArrayCtor(rawMemory, address, Math.round(size / byteWidth));
                 }

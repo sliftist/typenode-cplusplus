@@ -264,7 +264,7 @@ export function getDwarfAbbrevs(sections: Section[]) {
             [0x0a]: { name: "DW_FORM_block1", parse: () => parseBlock(1) },
             [0x0b]: { name: "DW_FORM_data1", parse: () => parseNum(1, false, true) },
             [0x0c]: { name: "DW_FORM_flag", parse: () => parseNum(1, false, true) },
-            [0x0d]: { name: "DW_FORM_sdata", parse: () => parseVarBlock() },
+            [0x0d]: { name: "DW_FORM_sdata", parse: () => parseLeb128(true) },
             [0x0e]: { name: "DW_FORM_strp", parse: () => parseCStringAt(parseNum(4, false, true)) },
             [0x0f]: { name: "DW_FORM_udata", parse: () => parseLeb128() },
             [0x10]: { name: "DW_FORM_ref_addr", parse: () => parseNum(4, false, true) },
@@ -272,7 +272,7 @@ export function getDwarfAbbrevs(sections: Section[]) {
             [0x12]: { name: "DW_FORM_ref2", parse: () => parseNum(2, false, true) },
             [0x13]: { name: "DW_FORM_ref4", parse: () => parseNum(4, false, true) },
             [0x14]: { name: "DW_FORM_ref8", parse: () => parseBytes(8) },
-            [0x15]: { name: "DW_FORM_ref_udata", parse: () => parseVarBlock() },
+            [0x15]: { name: "DW_FORM_ref_udata", parse: () => parseLeb128() },
             [0x16]: { name: "DW_FORM_indirect", parse: () => getDwForm(parseLeb128(), tagName) },
             [0x17]: { name: "DW_FORM_sec_offset", parse: () => parseNum(4, false, true) },
             [0x18]: { name: "DW_FORM_exprloc", parse: () => parseVarBlock() },
@@ -424,21 +424,14 @@ export function getDwarfAbbrevs(sections: Section[]) {
             form: { name: string; parse: () => any };
         }[];
     };
-
-    let abbrevsList: Record<number, Abbrev>[] = [Object.create(null)];
-    let nextCreateNewAbbrev = false;
-    {
-        curIndex = 0;
+    function parseAbbrevDefs(offset: number) {
+        curIndex = offset;
         curBuffer = nameValueSections[".debug_abbrev"];
+        let lookup: Record<number, Abbrev> = Object.create(null);
         while (curIndex < curBuffer.length) {
             let code = parseLeb128();
             if (code === 0) {
-                nextCreateNewAbbrev = true;
-                continue;
-            }
-            if (nextCreateNewAbbrev) {
-                abbrevsList.push(Object.create(null));
-                nextCreateNewAbbrev = false;
+                break;
             }
             let tag = parseLeb128();
             let hasChildren = !!curBuffer[curIndex++];
@@ -465,15 +458,16 @@ export function getDwarfAbbrevs(sections: Section[]) {
                     form: getDwForm(form, dwAttributeNameLookup[name] || String(name)),
                 });
             }
-            let abbrevs = abbrevsList[abbrevsList.length - 1];
-            if (code in abbrevs) {
+            if (code in lookup) {
                 debugbreak(2);
                 debugger;
                 throw new Error(`Duplicate codes? ${code}`);
             }
-            abbrevs[code] = abbrev;
+            lookup[code] = abbrev;
         }
+        return lookup;
     }
+
     function instantiateAbbrev(abbrev: Abbrev, parsedAddress: number): AbbrevInstance {
         let attrs = [];
         for (let att of abbrev.attributes) {
@@ -501,9 +495,9 @@ export function getDwarfAbbrevs(sections: Section[]) {
     //console.log({unit_length, version, debug_abbrev_offset, addr_size});
     //process.stdout.write("\n");
 
-    let abbrevLookup = Object.create(null) as Record<number, AbbrevInstance>;
+    let abbrevOffsetLookup = Object.create(null) as Record<number, AbbrevInstance>;
 
-    function parseAbbrevList(abbrevs: Record<number, Abbrev>, end: number) {
+    function parseAbbrevInstances(abbrevs: Record<number, Abbrev>, end: number) {
         let abbrevInsts = [];
         while (curIndex < end) {
             let abbrevPos = curIndex;
@@ -512,19 +506,21 @@ export function getDwarfAbbrevs(sections: Section[]) {
             if (code === 0) {
                 break;
             }
+
             // Attribute values
             if (!(code in abbrevs)) {
-                // Hmm... this is probably fine... I hope? If we parse correct (dynamically parsing .debug_abbrev),
-                //  this might this this. BUT, this only seems to happen near the end?
-                console.error(`Code not in abbrevs: ${code.toString(16)} (0x${curIndex.toString(16)} / 0x${curBuffer.length.toString()})`);
+                debugbreak(2);
+                debugger;
+                // Array.from(curBuffer).slice(curIndex - 20, curIndex).map(x => x.toString(16).padStart(2, "0")).join(" ")
+                console.error(`Code not in abbrevs: ${code.toString(16)} (abbrev count: ${Object.keys(abbrevs).length}, memory 0x${curIndex.toString(16)} / 0x${curBuffer.length.toString()})`);
                 continue;
             }
             let info = abbrevs[code];
             let infoObj = instantiateAbbrev(info, abbrevPos);
-            abbrevLookup[abbrevPos] = infoObj;
+            abbrevOffsetLookup[abbrevPos] = infoObj;
             abbrevInsts.push(infoObj);
             if (infoObj.hasChildren) {
-                infoObj.children = parseAbbrevList(abbrevs, end);
+                infoObj.children = parseAbbrevInstances(abbrevs, end);
             } else {
                 infoObj.children = [];
             }
@@ -532,7 +528,11 @@ export function getDwarfAbbrevs(sections: Section[]) {
         return abbrevInsts;
     }
 
-    let abbrevBlocks: { start: number; end: number; }[] = [];
+    let abbrevBlocks: {
+        start: number;
+        end: number;
+        defStart: number;
+    }[] = [];
     while (curIndex < curBuffer.length) {
         let length = parseNum(4, false, true);
         let version = parseNum(2, false, true);
@@ -540,19 +540,21 @@ export function getDwarfAbbrevs(sections: Section[]) {
         //  be dynamically reading .debug_abbrev AS NEEDED. But our current approach works, I guess it's fine...
         let offset = parseNum(4, false, true);
         let addr_size = parseNum(1, false, true);
-        abbrevBlocks.push({ start: curIndex, end: curIndex + length - 2 - 4 - 1 });
+        if (addr_size !== 4) {
+            console.warn(`Unexpected addr_size: ${addr_size}. This might be fine, but will probably break things.`);
+        }
+        abbrevBlocks.push({ start: curIndex, end: curIndex + length - 2 - 4 - 1, defStart: offset });
         curIndex += length - 2 - 4 - 1;
-    }
-    if (abbrevBlocks.length !== abbrevsList.length) {
-        throw new Error(`Abbrev blocks length mismatch: abbrevBlocks.length=${abbrevBlocks.length} !== abbrevsList.length=${abbrevsList.length}`);
     }
     let abbrevInsts: AbbrevInstance[] = [];
     for (let i = 0; i < abbrevBlocks.length; i++) {
         let abbrevBlock = abbrevBlocks[i];
+        let abbrevDefs = parseAbbrevDefs(abbrevBlock.defStart);
         curIndex = abbrevBlock.start;
-        abbrevInsts.push(...parseAbbrevList(abbrevsList[i], abbrevBlock.end));
+        curBuffer = nameValueSections[".debug_info"];
+        abbrevInsts.push(...parseAbbrevInstances(abbrevDefs, abbrevBlock.end));
     }
-    return { instances: abbrevInsts, lookup: abbrevLookup };
+    return { instances: abbrevInsts, lookup: abbrevOffsetLookup };
 }
 // https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
 function colorize(color: string, text: string) {
@@ -1466,7 +1468,7 @@ function parseDwarfSection(dwarfSection: DwarfSection) {
     while (curIndex < curBuffer.length) {
         let opCode = parseNum(1);
         //console.log("before", {opCode, address: curRegisters.address});
-        if (opCode == 0) {
+        if (opCode === 0) {
             //console.log(`Unhandled extended opcode ${opCode}`);
             //return;
             // extended opcode
@@ -1733,9 +1735,7 @@ function typeNameToSize(typeName: string) {
         byteWidth = 1;
         signed = false;
     } else {
-        debugbreak(2);
-        debugger;
-        console.log(`Unhandled type ${typeName}, assuming width is 4 bytes`);
+        //console.log(`Unhandled type ${typeName}, assuming width is 4 bytes`);
         byteWidth = 4;
     }
 
@@ -1810,7 +1810,7 @@ function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInst
             return result;
         }
 
-        typeName = result.typeName;
+        typeName = result.typeName || typeName;
 
         if (result.object) {
             typeName += "*";
@@ -1855,6 +1855,15 @@ function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInst
             subFunction: true,
         };
     }
+    // DW_TAG_enumeration_type 
+    if (baseType.tag === "DW_TAG_enumeration_type") {
+        let size = getAttValue(baseType, "DW_AT_byte_size");
+        return {
+            type: "number",
+            typeName,
+            byteWidth: size,
+        };
+    }
 
     let encoding = getAttValue(baseType, "DW_AT_encoding");
     let type = "any";
@@ -1875,9 +1884,9 @@ function getAbbrevType(abbrev: AbbrevInstance, lookup: Record<string, AbbrevInst
     if (encoding === 0x0f) type = "number";
 
     if (type === "any") {
-        console.log("Can't get type for abbrev", { type, typeName });
-        logAbbrevInst(baseType, undefined, undefined, lookup);
-        logAbbrevInst(abbrev, undefined, undefined, lookup);
+        // console.log("Can't get type for abbrev", { type, typeName });
+        // logAbbrevInst(baseType, undefined, undefined, lookup);
+        // logAbbrevInst(abbrev, undefined, undefined, lookup);
     }
 
     return { type, typeName };
